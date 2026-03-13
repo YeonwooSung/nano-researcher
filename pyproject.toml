@@ -1,7 +1,7 @@
 [project]
-name = "autoresearch"
+name = "nanoresearcher"
 version = "0.1.0"
-description = "Autonomous pretraining research swarm"
+description = "Nano-size autonomous pretraining research swarm"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
