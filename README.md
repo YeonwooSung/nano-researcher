@@ -1,4 +1,6 @@
-# autoresearch
+# nano-researcher
+
+*Note, this project has been forked from [autoresearch](https://github.com/karpathy/autoresearch), credits to @karpathy*
 
 ![teaser](progress.png)
 
