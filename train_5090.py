@@ -90,10 +90,10 @@ class CausalSelfAttention(nn.Module):
         # RTX 5090(Blackwell) 최적화: PyTorch SDPA 사용
         # SDPA는 (B, nh, T, hs) 형태를 입력으로 받습니다.
         q, k, v = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
-        
+
         # PyTorch 2.9+에서 SDPA는 Blackwell 아키텍처에 맞는 최적의 Flash Attention 커널을 자동 선택합니다.
         y = F.scaled_dot_product_attention(q, k, v, is_causal=True)
-        
+
         y = y.transpose(1, 2).contiguous().view(B, T, -1)
         y = self.c_proj(y)
         return y
@@ -136,14 +136,14 @@ class GPT(nn.Module):
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
         self.resid_lambdas = nn.Parameter(torch.ones(config.n_layer))
         self.x0_lambdas = nn.Parameter(torch.zeros(config.n_layer))
-        
+
         head_dim = config.n_embd // config.n_head
         kv_dim = config.n_kv_head * head_dim
         self.value_embeds = nn.ModuleDict({
             str(i): nn.Embedding(config.vocab_size, kv_dim)
             for i in range(config.n_layer) if has_ve(i, config.n_layer)
         })
-        
+
         self.rotary_seq_len = config.sequence_len * 10
         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
         self.register_buffer("cos", cos, persistent=False)
@@ -233,7 +233,7 @@ class GPT(nn.Module):
         lm_head_params = list(self.lm_head.parameters())
         resid_params = [self.resid_lambdas]
         x0_params = [self.x0_lambdas]
-        
+
         dmodel_lr_scale = (model_dim / 768) ** -0.5
         param_groups = [
             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=1e-10, weight_decay=0.0),
@@ -411,7 +411,7 @@ WARMDOWN_RATIO = 0.5
 FINAL_LR_FRAC = 0.0
 
 DEPTH = 8
-DEVICE_BATCH_SIZE = 128 # 5090은 32GB이므로 메모리가 남으면 256으로 올려보세요.
+DEVICE_BATCH_SIZE = 64 #128
 
 t_start = time.time()
 torch.manual_seed(42)
@@ -485,7 +485,7 @@ print(f"Starting training on RTX 5090 (Blackwell)... Budget: {TIME_BUDGET}s")
 while True:
     torch.cuda.synchronize()
     t0 = time.time()
-    
+
     for _ in range(grad_accum_steps):
         with autocast_ctx:
             loss = model(x, y)
@@ -496,12 +496,12 @@ while True:
     progress = min(total_training_time / TIME_BUDGET, 1.0)
     lrm = get_lr_multiplier(progress)
     muon_mom, muon_wd = get_muon_momentum(step), WEIGHT_DECAY * (1 - progress)
-    
+
     for group in optimizer.param_groups:
         group["lr"] = group["initial_lr"] * lrm
         if group['kind'] == 'muon':
             group["momentum"], group["weight_decay"] = muon_mom, muon_wd
-            
+
     optimizer.step()
     model.zero_grad(set_to_none=True)
 
@@ -519,7 +519,7 @@ while True:
     debiased_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
     tok_per_sec = int(TOTAL_BATCH_SIZE / dt)
     mfu = 100 * num_flops_per_token * TOTAL_BATCH_SIZE / dt / BLACKWELL_BF16_PEAK_FLOPS
-    
+
     print(f"\rstep {step:05d} ({progress*100:.1f}%) | loss: {debiased_loss:.6f} | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | remaining: {max(0, TIME_BUDGET - total_training_time):.0f}s    ", end="", flush=True)
 
     if step == 0:
