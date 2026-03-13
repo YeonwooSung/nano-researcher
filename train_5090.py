@@ -395,7 +395,7 @@ class MuonAdamW(torch.optim.Optimizer):
 # Training Hyperparameters
 # ---------------------------------------------------------------------------
 
-ASPECT_RATIO = 64
+ASPECT_RATIO = 96 #64
 HEAD_DIM = 128
 WINDOW_PATTERN = "SSSL"
 
@@ -408,10 +408,10 @@ WEIGHT_DECAY = 0.2
 ADAM_BETAS = (0.8, 0.95)
 WARMUP_RATIO = 0.0
 WARMDOWN_RATIO = 0.5
-FINAL_LR_FRAC = 0.0
+FINAL_LR_FRAC = 0.1 #0.0
 
 DEPTH = 8
-DEVICE_BATCH_SIZE = 64 #128
+DEVICE_BATCH_SIZE = 32 #128
 
 t_start = time.time()
 torch.manual_seed(42)
@@ -537,4 +537,23 @@ with autocast_ctx:
 
 print("---")
 print(f"val_bpb: {val_bpb:.6f} | total_tokens_M: {step * TOTAL_BATCH_SIZE / 1e6:.1f}")
+
+
+# 모델 저장 경로 설정
+save_dir = "checkpoints"
+os.makedirs(save_dir, exist_ok=True)
+save_path = os.path.join(save_dir, "model_final.pt")
+
+# torch.compile된 모델의 경우 _orig_mod를 저장해야 나중에 불러오기 쉽습니다.
+raw_model = model._orig_mod if hasattr(model, '_orig_mod') else model
+
+torch.save({
+    'step': step,
+    'model_state_dict': raw_model.state_dict(),
+    'optimizer_state_dict': optimizer.state_dict(),
+    'config': asdict(config),
+    'val_bpb': val_bpb,
+}, save_path)
+
+print(f"Model saved to {save_path}")
 
